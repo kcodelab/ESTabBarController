@@ -186,20 +186,23 @@ internal extension ESTabBar /* Layout */ {
             ESTabBarController.printError("empty items")
             return
         }
+        guard !containers.isEmpty else { return }
 
-        // Locate native tab bar buttons without relying on a private class name.
-        // Strategy: any UIControl subview that is NOT one of our own containers is a
-        // native button — this is robust across iOS versions including iOS 26 Liquid
-        // Glass which renamed / restructured UITabBarButton.
-        // Ref: https://github.com/eggswift/ESTabBarController/issues/300
-        let tabBarButtons: [UIView] = subviews
-            .filter { view in
-                guard view is UIControl else { return false }
-                return !containers.contains { $0 === view }
-            }
-            .sorted { $0.frame.origin.x < $1.frame.origin.x }
+        // --- 1. Find native tab bar buttons ---
+        // Use class name when available (pre-iOS 26); fall back to UIControl-excluding-containers.
+        // All array accesses are bounds-checked. Ref: https://github.com/eggswift/ESTabBarController/issues/300
+        let tabBarButtons: [UIView]
+        if let cls = NSClassFromString("UITabBarButton") {
+            tabBarButtons = subviews
+                .filter { $0.isKind(of: cls) }
+                .sorted { $0.frame.origin.x < $1.frame.origin.x }
+        } else {
+            tabBarButtons = subviews
+                .filter { ($0 is UIControl) && !containers.contains { c in c === $0 } }
+                .sorted { $0.frame.origin.x < $1.frame.origin.x }
+        }
 
-        // 1. Show/hide native buttons (skip silently if unavailable on iOS 26+)
+        // --- 2. Show / hide native buttons ---
         if isCustomizing {
             for (idx, _) in tabBarItems.enumerated() {
                 guard idx < tabBarButtons.count else { continue }
@@ -210,60 +213,55 @@ internal extension ESTabBar /* Layout */ {
         } else {
             for (idx, item) in tabBarItems.enumerated() {
                 guard idx < tabBarButtons.count else { continue }
-                if item is ESTabBarItem {
-                    tabBarButtons[idx].isHidden = true
-                } else {
-                    tabBarButtons[idx].isHidden = false
-                }
-                if isMoreItem(idx), moreContentView != nil {
-                    tabBarButtons[idx].isHidden = true
-                }
+                tabBarButtons[idx].isHidden = (item is ESTabBarItem) || (isMoreItem(idx) && moreContentView != nil)
             }
             for container in containers { container.isHidden = false }
         }
 
-        // 2. Position containers
-        var layoutBaseSystem = true
+        // --- 3. Position containers ---
+        var useSystemLayout = true
         if let pos = itemCustomPositioning {
             switch pos {
-            case .fillIncludeSeparator, .fillExcludeSeparator:
-                layoutBaseSystem = false
-            default:
-                break
+            case .fillIncludeSeparator, .fillExcludeSeparator: useSystemLayout = false
+            default: break
             }
         }
 
-        if layoutBaseSystem {
-            if tabBarButtons.count >= containers.count {
-                // Normal path: copy native button frames
+        if useSystemLayout {
+            // Try native button frames; they must all be non-empty and count must match
+            let validNativeFrames = tabBarButtons.count >= containers.count
+                && !tabBarButtons[0 ..< containers.count].contains { $0.frame.isEmpty }
+            if validNativeFrames {
                 for (idx, container) in containers.enumerated() {
-                    if !tabBarButtons[idx].frame.isEmpty {
-                        container.frame = tabBarButtons[idx].frame
-                    }
+                    container.frame = tabBarButtons[idx].frame
                 }
             } else {
-                // iOS 26+ fallback: native buttons unavailable, distribute equally
-                guard !containers.isEmpty, bounds.width > 0 else { return }
-                let eachWidth = bounds.width / CGFloat(containers.count)
+                // Fallback: equal distribution.
+                // No guard on bounds — if bounds is zero this frame is also zero, but
+                // layoutSubviews will be called again once the view has proper bounds.
+                let n = CGFloat(containers.count)
+                let eachW = bounds.width / n
                 for (idx, container) in containers.enumerated() {
-                    container.frame = CGRect(x: CGFloat(idx) * eachWidth, y: 0,
-                                            width: eachWidth, height: bounds.height)
+                    container.frame = CGRect(x: CGFloat(idx) * eachW, y: 0,
+                                            width: eachW, height: bounds.height)
                 }
             }
         } else {
-            // Custom itemPositioning
             var x: CGFloat = itemEdgeInsets.left
             var y: CGFloat = itemEdgeInsets.top
             if itemCustomPositioning == .fillExcludeSeparator, y <= 0 { y += 1.0 }
-            let width = bounds.size.width - itemEdgeInsets.left - itemEdgeInsets.right
-            let height = bounds.size.height - y - itemEdgeInsets.bottom
-            let eachWidth = itemWidth == 0.0 ? width / CGFloat(containers.count) : itemWidth
-            let eachSpacing = itemSpacing == 0.0 ? 0.0 : itemSpacing
+            let w = bounds.width  - itemEdgeInsets.left - itemEdgeInsets.right
+            let h = bounds.height - y - itemEdgeInsets.bottom
+            let eachW = itemWidth  == 0 ? w / CGFloat(containers.count) : itemWidth
+            let eachS = itemSpacing == 0 ? 0 : itemSpacing
             for container in containers {
-                container.frame = CGRect(x: x, y: y, width: eachWidth, height: height)
-                x += eachWidth + eachSpacing
+                container.frame = CGRect(x: x, y: y, width: eachW, height: h)
+                x += eachW + eachS
             }
         }
+
+        // Ensure containers are always on top of any native system views
+        for container in containers { bringSubviewToFront(container) }
     }
 }
 
