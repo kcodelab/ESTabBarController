@@ -188,10 +188,10 @@ internal extension ESTabBar /* Layout */ {
         }
         
         let tabBarButtons = subviews.filter { subview -> Bool in
-            if let cls = NSClassFromString("UITabBarButton") {
-                return subview.isKind(of: cls)
-            }
-            return false
+            // iOS 26 renamed UITabBarButton; fall back to UIControl to remain compatible
+            // Ref: https://github.com/eggswift/ESTabBarController/issues/300
+            let cls = NSClassFromString("UITabBarButton") ?? NSClassFromString("UIControl")
+            return cls.map { subview.isKind(of: $0) } ?? false
             } .sorted { (subview1, subview2) -> Bool in
                 return subview1.frame.origin.x < subview2.frame.origin.x
         }
