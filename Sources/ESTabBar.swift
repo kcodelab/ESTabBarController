@@ -181,7 +181,7 @@ open class ESTabBar: UITabBar {
 
 extension ESTabBar /* Layout */ {
 
-    open func updateLayout() {
+    public func updateLayout() {
         guard let tabBarItems = self.items else {
             ESTabBarController.printError("empty items")
             return
@@ -282,7 +282,7 @@ internal extension ESTabBar /* Actions */ {
         containers.removeAll()
     }
     
-    open func reload() {
+    public func reload() {
         removeAll()
         guard let tabBarItems = self.items else {
             ESTabBarController.printError("empty items")
@@ -307,7 +307,7 @@ internal extension ESTabBar /* Actions */ {
 
     /// Inject content views into existing containers without calling setItems.
     /// Use this on iOS 18+ where UITabBarController disallows direct setItems calls.
-    open func injectContentViews(_ contentViews: [ESTabBarItemContentView]) {
+    public func injectContentViews(_ contentViews: [ESTabBarItemContentView]) {
         guard !containers.isEmpty else { return }
         for (idx, contentView) in contentViews.enumerated() {
             guard idx < containers.count else { break }
