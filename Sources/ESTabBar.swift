@@ -227,6 +227,10 @@ internal extension ESTabBar /* Layout */ {
             }
         }
 
+        // iOS 26 Liquid Glass completely restructured UITabBar internals;
+        // native button frame lookup is unreliable — always use manual layout.
+        if #available(iOS 26.0, *) { useSystemLayout = false }
+
         if useSystemLayout {
             // Try native button frames; they must all be non-empty and count must match
             let validNativeFrames = tabBarButtons.count >= containers.count
