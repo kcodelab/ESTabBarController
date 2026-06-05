@@ -187,18 +187,17 @@ internal extension ESTabBar /* Layout */ {
             return
         }
 
-        // On iOS 26+ (Liquid Glass redesign), UITabBarButton may no longer exist as a
-        // named private class, leaving tabBarButtons empty. Every access is bounds-checked
-        // and the layout path falls back gracefully when no native buttons are found.
+        // Locate native tab bar buttons without relying on a private class name.
+        // Strategy: any UIControl subview that is NOT one of our own containers is a
+        // native button — this is robust across iOS versions including iOS 26 Liquid
+        // Glass which renamed / restructured UITabBarButton.
         // Ref: https://github.com/eggswift/ESTabBarController/issues/300
-        let tabBarButtons: [UIView]
-        if let cls = NSClassFromString("UITabBarButton") {
-            tabBarButtons = subviews
-                .filter { $0.isKind(of: cls) }
-                .sorted { $0.frame.origin.x < $1.frame.origin.x }
-        } else {
-            tabBarButtons = []
-        }
+        let tabBarButtons: [UIView] = subviews
+            .filter { view in
+                guard view is UIControl else { return false }
+                return !containers.contains { $0 === view }
+            }
+            .sorted { $0.frame.origin.x < $1.frame.origin.x }
 
         // 1. Show/hide native buttons (skip silently if unavailable on iOS 26+)
         if isCustomizing {
