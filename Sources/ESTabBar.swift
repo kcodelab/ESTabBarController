@@ -186,85 +186,83 @@ internal extension ESTabBar /* Layout */ {
             ESTabBarController.printError("empty items")
             return
         }
-        
-        // iOS 26 changed UITabBarButton's internal class name; use a safe fallback.
+
+        // On iOS 26+ (Liquid Glass redesign), UITabBarButton may no longer exist as a
+        // named private class, leaving tabBarButtons empty. Every access is bounds-checked
+        // and the layout path falls back gracefully when no native buttons are found.
         // Ref: https://github.com/eggswift/ESTabBarController/issues/300
-        let tabBarButtonClass: AnyClass? = NSClassFromString("UITabBarButton")
-        let tabBarButtons = subviews.filter { subview -> Bool in
-            if let cls = tabBarButtonClass {
-                return subview.isKind(of: cls)
-            }
-            // iOS 26+: UITabBarButton may no longer exist; match nothing and rely on
-            // bounds-checked access below to avoid crash.
-            return false
-            } .sorted { (subview1, subview2) -> Bool in
-                return subview1.frame.origin.x < subview2.frame.origin.x
+        let tabBarButtons: [UIView]
+        if let cls = NSClassFromString("UITabBarButton") {
+            tabBarButtons = subviews
+                .filter { $0.isKind(of: cls) }
+                .sorted { $0.frame.origin.x < $1.frame.origin.x }
+        } else {
+            tabBarButtons = []
         }
 
+        // 1. Show/hide native buttons (skip silently if unavailable on iOS 26+)
         if isCustomizing {
             for (idx, _) in tabBarItems.enumerated() {
                 guard idx < tabBarButtons.count else { continue }
                 tabBarButtons[idx].isHidden = false
                 moreContentView?.isHidden = true
             }
-            for (_, container) in containers.enumerated(){
-                container.isHidden = true
-            }
+            for container in containers { container.isHidden = true }
         } else {
             for (idx, item) in tabBarItems.enumerated() {
                 guard idx < tabBarButtons.count else { continue }
-                if let _ = item as? ESTabBarItem {
+                if item is ESTabBarItem {
                     tabBarButtons[idx].isHidden = true
                 } else {
                     tabBarButtons[idx].isHidden = false
                 }
-                if isMoreItem(idx), let _ = moreContentView {
+                if isMoreItem(idx), moreContentView != nil {
                     tabBarButtons[idx].isHidden = true
                 }
             }
-            for (_, container) in containers.enumerated(){
-                container.isHidden = false
-            }
+            for container in containers { container.isHidden = false }
         }
-        
+
+        // 2. Position containers
         var layoutBaseSystem = true
-        if let itemCustomPositioning = itemCustomPositioning {
-            switch itemCustomPositioning {
-            case .fill, .automatic, .centered:
-                break
+        if let pos = itemCustomPositioning {
+            switch pos {
             case .fillIncludeSeparator, .fillExcludeSeparator:
                 layoutBaseSystem = false
+            default:
+                break
             }
         }
-        
+
         if layoutBaseSystem {
-            // System itemPositioning
-            for (idx, container) in containers.enumerated(){
-                if !tabBarButtons[idx].frame.isEmpty {
-                    container.frame = tabBarButtons[idx].frame
+            if tabBarButtons.count >= containers.count {
+                // Normal path: copy native button frames
+                for (idx, container) in containers.enumerated() {
+                    if !tabBarButtons[idx].frame.isEmpty {
+                        container.frame = tabBarButtons[idx].frame
+                    }
+                }
+            } else {
+                // iOS 26+ fallback: native buttons unavailable, distribute equally
+                guard !containers.isEmpty, bounds.width > 0 else { return }
+                let eachWidth = bounds.width / CGFloat(containers.count)
+                for (idx, container) in containers.enumerated() {
+                    container.frame = CGRect(x: CGFloat(idx) * eachWidth, y: 0,
+                                            width: eachWidth, height: bounds.height)
                 }
             }
         } else {
             // Custom itemPositioning
             var x: CGFloat = itemEdgeInsets.left
             var y: CGFloat = itemEdgeInsets.top
-            switch itemCustomPositioning! {
-            case .fillExcludeSeparator:
-                if y <= 0.0 {
-                    y += 1.0
-                }
-            default:
-                break
-            }
+            if itemCustomPositioning == .fillExcludeSeparator, y <= 0 { y += 1.0 }
             let width = bounds.size.width - itemEdgeInsets.left - itemEdgeInsets.right
             let height = bounds.size.height - y - itemEdgeInsets.bottom
             let eachWidth = itemWidth == 0.0 ? width / CGFloat(containers.count) : itemWidth
             let eachSpacing = itemSpacing == 0.0 ? 0.0 : itemSpacing
-            
             for container in containers {
-                container.frame = CGRect.init(x: x, y: y, width: eachWidth, height: height)
-                x += eachWidth
-                x += eachSpacing
+                container.frame = CGRect(x: x, y: y, width: eachWidth, height: height)
+                x += eachWidth + eachSpacing
             }
         }
     }
