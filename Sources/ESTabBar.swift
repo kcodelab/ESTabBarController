@@ -179,9 +179,9 @@ open class ESTabBar: UITabBar {
     
 }
 
-internal extension ESTabBar /* Layout */ {
-    
-    func updateLayout() {
+extension ESTabBar /* Layout */ {
+
+    open func updateLayout() {
         guard let tabBarItems = self.items else {
             ESTabBarController.printError("empty items")
             return
@@ -282,7 +282,7 @@ internal extension ESTabBar /* Actions */ {
         containers.removeAll()
     }
     
-    func reload() {
+    open func reload() {
         removeAll()
         guard let tabBarItems = self.items else {
             ESTabBarController.printError("empty items")
