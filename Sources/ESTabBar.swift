@@ -198,7 +198,7 @@ internal extension ESTabBar /* Layout */ {
                 .sorted { $0.frame.origin.x < $1.frame.origin.x }
         } else {
             tabBarButtons = subviews
-                .filter { ($0 is UIControl) && !containers.contains { c in c === $0 } }
+                .filter { view in (view is UIControl) && !containers.contains { $0 === view } }
                 .sorted { $0.frame.origin.x < $1.frame.origin.x }
         }
 
