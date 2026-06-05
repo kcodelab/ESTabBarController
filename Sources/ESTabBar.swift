@@ -187,17 +187,23 @@ internal extension ESTabBar /* Layout */ {
             return
         }
         
+        // iOS 26 changed UITabBarButton's internal class name; use a safe fallback.
+        // Ref: https://github.com/eggswift/ESTabBarController/issues/300
+        let tabBarButtonClass: AnyClass? = NSClassFromString("UITabBarButton")
         let tabBarButtons = subviews.filter { subview -> Bool in
-            // iOS 26 renamed UITabBarButton; fall back to UIControl to remain compatible
-            // Ref: https://github.com/eggswift/ESTabBarController/issues/300
-            let cls = NSClassFromString("UITabBarButton") ?? NSClassFromString("UIControl")
-            return cls.map { subview.isKind(of: $0) } ?? false
+            if let cls = tabBarButtonClass {
+                return subview.isKind(of: cls)
+            }
+            // iOS 26+: UITabBarButton may no longer exist; match nothing and rely on
+            // bounds-checked access below to avoid crash.
+            return false
             } .sorted { (subview1, subview2) -> Bool in
                 return subview1.frame.origin.x < subview2.frame.origin.x
         }
-        
+
         if isCustomizing {
             for (idx, _) in tabBarItems.enumerated() {
+                guard idx < tabBarButtons.count else { continue }
                 tabBarButtons[idx].isHidden = false
                 moreContentView?.isHidden = true
             }
@@ -206,6 +212,7 @@ internal extension ESTabBar /* Layout */ {
             }
         } else {
             for (idx, item) in tabBarItems.enumerated() {
+                guard idx < tabBarButtons.count else { continue }
                 if let _ = item as? ESTabBarItem {
                     tabBarButtons[idx].isHidden = true
                 } else {
