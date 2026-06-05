@@ -292,7 +292,7 @@ internal extension ESTabBar /* Actions */ {
             let container = ESTabBarItemContainer.init(self, tag: 1000 + idx)
             self.addSubview(container)
             self.containers.append(container)
-            
+
             if let item = item as? ESTabBarItem {
                 container.addSubview(item.contentView)
             }
@@ -300,11 +300,27 @@ internal extension ESTabBar /* Actions */ {
                 container.addSubview(moreContentView)
             }
         }
-        
+
         self.updateAccessibilityLabels()
         self.setNeedsLayout()
     }
-    
+
+    /// Inject content views into existing containers without calling setItems.
+    /// Use this on iOS 18+ where UITabBarController disallows direct setItems calls.
+    open func injectContentViews(_ contentViews: [ESTabBarItemContentView]) {
+        guard !containers.isEmpty else { return }
+        for (idx, contentView) in contentViews.enumerated() {
+            guard idx < containers.count else { break }
+            if contentView.superview !== containers[idx] {
+                containers[idx].addSubview(contentView)
+            }
+        }
+        updateLayout()
+        setNeedsLayout()
+        layoutIfNeeded()
+        containers.forEach { $0.setNeedsLayout(); $0.layoutIfNeeded() }
+    }
+
     @objc func highlightAction(_ sender: AnyObject?) {
         guard let container = sender as? ESTabBarItemContainer else {
             return
